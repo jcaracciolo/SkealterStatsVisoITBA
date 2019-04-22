@@ -1,0 +1,190 @@
+#
+# //PerMatch
+# seasonId
+# queueId
+# gameId
+# gameMode
+# gameDuration
+# gameCreation
+#
+#
+#
+# //Teams
+# teams[me].win
+# teams[me].teamId //100 o 200
+# teams[me].firstBlood
+# teams[me].firstTower
+# teams[me].firstDragon
+# teams[me].firstInhibitor
+# teams[me].firstBaron
+#
+# participants[myteam].kills
+# teams[me].towerKills
+# teams[me].dragonKills
+# teams[me].inhibitorKills
+# teams[me].baronKills
+#
+# participants[notme].kills
+# teams[notme].towerKills
+# teams[notme].dragonKills
+# teams[notme].inhibitorKills
+# teams[notme].baronKills
+#
+# //participants
+# //ME
+#
+# participants[me].teamId
+# participants[me].participantId
+# participants[me].spell1Id
+# participants[me].spell2Id
+# participants[me].championId
+#
+# participants[me]stats.magicDamageDealtToChampions
+# participants[me]stats.physicalDamageDealtToChampions
+# participants[me]stats.physicalDamageTaken
+# participants[me]stats.magicalDamageTaken
+# participants[me]stats.totalTimeCrowdControlDealt
+#
+# participants[me]stats.damageDealtToTurrets
+#
+# participants[me]stats.largestKillingSpree
+# participants[me]stats.pentaKills
+# participants[me]stats.quadraKills
+# participants[me]stats.tripleKills
+# participants[me]stats.doubleKills
+# participants[me]stats.kills
+# participants[me]stats.deaths
+# participants[me]stats.assists
+#
+# participants[me]stats.totalMinionsKilled
+# participants[me]stats.goldSpent
+# participants[me]stats.wardsPlaced
+
+
+import json
+import urllib.request
+
+
+def get_participant_id(data, participant):
+    players = data["participantIdentities"]
+    for i, p in enumerate(players):
+        if p["player"]["summonerName"] == participant:
+            return i
+
+    raise NameError
+
+
+def get_team_for(data, participantId):
+    player = data["participants"][participantId]
+    return player["teamId"]
+
+def get_wards(data, id):
+    try:
+        return data["participants"][id]["stats"]["wardsPlaced"]
+    except:
+        return 0
+
+
+def get_total_kills(data, teamId):
+    players = data["participants"]
+    kill1 = 0
+    kill2 = 0
+    for p in players:
+        if p["teamId"] == teamId:
+            kill1 += p["stats"]["kills"]
+        else:
+            kill2 += p["stats"]["kills"]
+
+    return (kill1, kill2)
+
+
+csvOutput = open("SkealterStats.csv", "w")
+csvOutput.write("nro,playerId,seasonId,queueId,gameId,gameMode,gameDuration,gameCreation," +
+                "win,teamId,firstBlood,firstTower,firstDragon,firstInhibitor,firstBaron," +
+                "myTeamKills,myTeamtowerKills,myTeamdragonKills,myTeaminhibitorKills,myTeambaronKills," +
+                "enemyTeamKills,enemyTeamtowerKills,enemyTeamdragonKills,enemyTeaminhibitorKills,enemyTeambaronKills," +
+                "teamId,participantId,spell1Id,spell2Id,championId,"
+                "magicDamageDealtToChampions,physicalDamageDealtToChampions,physicalDamageTaken, magicalDamageTaken," +
+                "totalTimeCrowdControlDealt,damageDealtToTurrets,largestKillingSpree,pentaKills,quadraKills,tripleKills," +
+                "doubleKills,kills,deaths,assits,totalMinionsKilled,goldSpent,wardsPlaced\n")
+
+gamesfile = open("matches.json", "r")
+gameData = gamesfile.read()
+games = json.loads(gameData.replace("'", "\""))
+
+for i, g in enumerate(games["matches"]):
+    matchId = g["gameId"]
+    success = False
+    contents = None
+    while not success:
+        try:
+            print("Calling for match {match}".format(match=matchId))
+            contents = urllib.request.urlopen(
+                "https://la2.api.riotgames.com/lol/match/v4/matches/{matchId}?api_key=RGAPI-a3dd6f50-45b2-4b22-91ee-6c004db24796"
+                    .format(matchId=matchId)).read()
+            success = True
+        except:
+            print("Failed Calling for match {match}, retrying".format(match=matchId))
+            success = False
+
+    data = json.loads(contents)
+    id = get_participant_id(data, "Skealter")
+    teamId = get_team_for(data, id)
+    total_kill_me, total_kill_them = get_total_kills(data, teamId)
+    print("Saving data for game {i}".format(i=i))
+    answer = [
+        i,
+        id,
+        data["seasonId"],
+        data["queueId"],
+        data["gameId"],
+        data["gameMode"],
+        data["gameDuration"],
+        data["gameCreation"],
+        data["teams"][int(teamId / 100 - 1)]["win"],
+        data["teams"][int(teamId / 100 - 1)]["teamId"],
+        data["teams"][int(teamId / 100 - 1)]["firstBlood"],
+        data["teams"][int(teamId / 100 - 1)]["firstTower"],
+        data["teams"][int(teamId / 100 - 1)]["firstDragon"],
+        data["teams"][int(teamId / 100 - 1)]["firstInhibitor"],
+        data["teams"][int(teamId / 100 - 1)]["firstBaron"],
+        total_kill_me,
+        data["teams"][int(teamId / 100 - 1)]["towerKills"],
+        data["teams"][int(teamId / 100 - 1)]["dragonKills"],
+        data["teams"][int(teamId / 100 - 1)]["inhibitorKills"],
+        data["teams"][int(teamId / 100 - 1)]["baronKills"],
+        total_kill_them,
+        data["teams"][int(1 - (teamId / 100 - 1))]["towerKills"],
+        data["teams"][int(1 - (teamId / 100 - 1))]["dragonKills"],
+        data["teams"][int(1 - (teamId / 100 - 1))]["inhibitorKills"],
+        data["teams"][int(1 - (teamId / 100 - 1))]["baronKills"],
+        data["participants"][id]["teamId"],
+        data["participants"][id]["participantId"],
+        data["participants"][id]["spell1Id"],
+        data["participants"][id]["spell2Id"],
+        data["participants"][id]["championId"],
+        data["participants"][id]["stats"]["magicDamageDealtToChampions"],
+        data["participants"][id]["stats"]["physicalDamageDealtToChampions"],
+        data["participants"][id]["stats"]["physicalDamageTaken"],
+        data["participants"][id]["stats"]["magicalDamageTaken"],
+        data["participants"][id]["stats"]["totalTimeCrowdControlDealt"],
+        data["participants"][id]["stats"]["damageDealtToTurrets"],
+        data["participants"][id]["stats"]["largestKillingSpree"],
+        data["participants"][id]["stats"]["pentaKills"],
+        data["participants"][id]["stats"]["quadraKills"],
+        data["participants"][id]["stats"]["tripleKills"],
+        data["participants"][id]["stats"]["doubleKills"],
+        data["participants"][id]["stats"]["kills"],
+        data["participants"][id]["stats"]["deaths"],
+        data["participants"][id]["stats"]["assists"],
+        data["participants"][id]["stats"]["totalMinionsKilled"],
+        data["participants"][id]["stats"]["goldSpent"],
+        get_wards(data, id)
+    ]
+
+    csvOutput.write(",".join(map(str, answer)))
+    csvOutput.write("\n")
+    csvOutput.flush()
+
+gamesfile.close()
+csvOutput.close()
